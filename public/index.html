@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>HackTracker — Live Hackathon Feed</title>
+  <meta name="description" content="Live feed of hackathons from Devpost, lablab.ai, MLH, dev.to, HackerEarth, DoraHacks and Google Developers." />
+  <meta name="theme-color" content="#0A0A0F" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="HackTracker" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Mobile topbar -->
+  <header class="topbar">
+    <div class="topbar-logo">
+      <div class="logo-mark">H</div>
+      <span class="logo-text">HackTracker</span>
+    </div>
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      <span class="live-text">LIVE</span>
+    </div>
+  </header>
+
+  <!-- Desktop sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">H</div>
+      <span class="logo-text">HackTracker</span>
+      <div class="live-badge" style="margin-left:auto">
+        <div class="live-dot"></div>
+        <span class="live-text">LIVE</span>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">NAVIGATION</div>
+      <div class="nav-item active" id="snav-feed" onclick="switchTab('feed')"><span class="nav-icon">◈</span> Feed</div>
+      <div class="nav-item" id="snav-saved" onclick="switchTab('saved')"><span class="nav-icon">★</span> Saved <span class="nav-count" id="savedNavCount"></span></div>
+      <div class="nav-item" id="snav-settings" onclick="switchTab('settings')"><span class="nav-icon">⚙</span> Settings</div>
+    </div>
+    <div class="sidebar-section" style="padding-bottom:4px">
+      <div class="sidebar-label">SOURCES</div>
+    </div>
+    <div class="sidebar-filters" id="sidebarFilters"></div>
+    <div class="sidebar-bottom">
+      <button class="install-btn" onclick="triggerInstall()">⬇ Install App</button>
+    </div>
+  </nav>
+
+  <!-- Main content -->
+  <main class="main">
+
+    <!-- FEED -->
+    <section class="page active" id="page-feed">
+      <div class="feed-header">
+        <div class="feed-title-row">
+          <h1 class="feed-title">Live Feed</h1>
+          <span class="feed-count" id="feedCount">loading...</span>
+        </div>
+        <div class="search-wrap">
+          <span class="search-icon">⌕</span>
+          <input class="search-input" id="searchInput" type="search"
+            placeholder="Search hackathons, prizes, orgs..."
+            oninput="handleSearch(this.value)" autocomplete="off" />
+          <button class="search-clear" id="searchClear" onclick="clearSearch()">✕</button>
+        </div>
+        <div class="filter-pills" id="filterPills">
+          <div class="pill active" data-filter="all" onclick="setFilter('all')"><div class="pill-dot" style="background:var(--green)"></div>All</div>
+          <div class="pill" data-filter="lablab" onclick="setFilter('lablab')"><div class="pill-dot" style="background:var(--blue)"></div>lablab.ai</div>
+          <div class="pill" data-filter="devpost" onclick="setFilter('devpost')"><div class="pill-dot" style="background:var(--green)"></div>Devpost</div>
+          <div class="pill" data-filter="devto" onclick="setFilter('devto')"><div class="pill-dot" style="background:var(--purple)"></div>dev.to</div>
+          <div class="pill" data-filter="mlh" onclick="setFilter('mlh')"><div class="pill-dot" style="background:var(--pink)"></div>MLH</div>
+          <div class="pill" data-filter="he" onclick="setFilter('he')"><div class="pill-dot" style="background:var(--yellow)"></div>HackerEarth</div>
+          <div class="pill" data-filter="dora" onclick="setFilter('dora')"><div class="pill-dot" style="background:var(--orange)"></div>DoraHacks</div>
+          <div class="pill" data-filter="google" onclick="setFilter('google')"><div class="pill-dot" style="background:var(--orange)"></div>Google</div>
+        </div>
+      </div>
+      <div class="stats-bar" id="statsBar"></div>
+      <div class="card-grid" id="feedGrid"></div>
+    </section>
+
+    <!-- SAVED -->
+    <section class="page" id="page-saved">
+      <div class="page-header">
+        <h1 class="page-title">Saved</h1>
+        <p class="page-sub" id="savedCount">0 items</p>
+      </div>
+      <div class="card-grid" id="savedGrid"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="page" id="page-settings">
+      <div class="page-header">
+        <h1 class="page-title">Settings</h1>
+        <p class="page-sub">Notifications &amp; preferences</p>
+      </div>
+      <div class="settings-body">
+        <div class="settings-section">
+          <div class="settings-label">PUSH NOTIFICATIONS</div>
+          <div class="settings-desc">Get an instant alert the moment a new hackathon is detected — even when the app is closed.</div>
+          <div class="notif-banner"><div class="banner-dot"></div><div class="banner-text">Your browser supports Web Push. Enable it to get notified in real-time across all 7 sources.</div></div>
+          <button class="sub-btn" style="width:100%;padding:11px" onclick="requestNotificationPermission()">Enable Push Notifications</button>
+          <div id="notifStatus" style="font-size:12px;color:var(--text-3);margin-top:6px"></div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-label">EMAIL NOTIFICATIONS</div>
+          <div class="settings-desc">Get a digest email whenever new hackathons are found.</div>
+          <div id="emailArea">
+            <div class="email-row">
+              <input class="email-input" id="emailInput" type="email" placeholder="your@email.com" />
+              <button class="sub-btn" id="subBtn" onclick="handleSubscribe()">Subscribe</button>
+            </div>
+          </div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-label">NOTIFICATION SOURCES</div>
+          <div class="settings-desc">Toggle which platforms send you alerts.</div>
+          <div id="sourceToggles"></div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-label">INSTALL APP</div>
+          <div class="settings-desc">Install HackTracker to your home screen. Works offline too.</div>
+          <button class="install-btn" style="width:100%" onclick="triggerInstall()">⬇ Add to Home Screen</button>
+        </div>
+        <div class="settings-section">
+          <div class="settings-label">ABOUT</div>
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
+            <div class="about-row"><span>Version</span><span>2.0.0</span></div>
+            <div class="about-row"><span>Sources</span><span>7 platforms</span></div>
+            <div class="about-row"><span>Check interval</span><span>Every 4 hours</span></div>
+            <div class="about-row"><span>Hosting</span><span>Netlify + Supabase</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Mobile bottom nav -->
+<nav class="bottom-nav">
+  <button class="nav-tab active" id="tab-feed" onclick="switchTab('feed')">
+    <span class="nav-tab-icon">◈</span><span class="nav-tab-label">FEED</span>
+  </button>
+  <button class="nav-tab" id="tab-saved" onclick="switchTab('saved')">
+    <span class="nav-tab-icon">★</span><span class="nav-tab-label">SAVED</span>
+  </button>
+  <button class="nav-tab" id="tab-settings" onclick="switchTab('settings')">
+    <span class="nav-tab-icon">⚙</span><span class="nav-tab-label">SETTINGS</span>
+  </button>
+</nav>
+
+<!-- Install prompt -->
+<div class="install-prompt" id="installPrompt">
+  <div class="install-prompt-title">Install HackTracker</div>
+  <div class="install-prompt-text">Add to your home screen for instant notifications and offline access — no app store needed.</div>
+  <div class="install-prompt-actions">
+    <button class="install-prompt-yes" onclick="triggerInstall()">Install</button>
+    <button class="install-prompt-no" onclick="document.getElementById('installPrompt').classList.remove('show')">Not now</button>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+[build]
+  publish = "public"          # PWA static files served from here
+  command = "echo 'No build step needed'"
+
+[functions]
+  directory = "netlify/functions"   # Python serverless functions live here
+  node_bundler = "esbuild"
+
+# Redirect all /api/* requests to the Python function
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+
+# SPA fallback — serve index.html for all other routes
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[build.environment]
+  PYTHON_VERSION = "3.11"
