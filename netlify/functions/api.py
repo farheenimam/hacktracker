@@ -170,4 +170,7 @@ def health():
 
 
 # Netlify handler
-handler = Mangum(app, lifespan="off")
+def handler(event, context):
+    from mangum import Mangum
+    asgi_handler = Mangum(app, lifespan="off")
+    return asgi_handler(event, context)
