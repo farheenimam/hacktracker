@@ -1,10 +1,11 @@
-import os
 import json
+import os
 import ssl
-from urllib.parse import urlparse
-import pg8000.dbapi
+from urllib.request import urlopen, Request
+from urllib.parse import urlparse, urlencode
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
 
 _HEADERS = {
     "Content-Type": "application/json",
@@ -13,37 +14,44 @@ _HEADERS = {
     "Access-Control-Allow-Headers": "Content-Type",
 }
 
+SSL_CTX = ssl.create_default_context()
+SSL_CTX.check_hostname = False
+SSL_CTX.verify_mode = ssl.CERT_NONE
+
 
 def respond(data, code=200):
     return {"statusCode": code, "headers": _HEADERS, "body": json.dumps(data, default=str)}
 
 
-def get_conn():
-    url = urlparse(DATABASE_URL)
-    ssl_ctx = ssl.create_default_context()
-    ssl_ctx.check_hostname = False
-    ssl_ctx.verify_mode = ssl.CERT_NONE
-    return pg8000.dbapi.connect(
-        host=url.hostname,
-        port=url.port or 5432,
-        database=url.path.lstrip("/"),
-        user=url.username,
-        password=url.password,
-        ssl_context=ssl_ctx,
-    )
+def sb_get(table, params=None):
+    qs = "?" + urlencode(params) if params else ""
+    url = f"{SUPABASE_URL}/rest/v1/{table}{qs}"
+    req = Request(url, headers={
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+    })
+    with urlopen(req, context=SSL_CTX, timeout=8) as r:
+        return json.loads(r.read())
 
 
-def fetchdicts(cursor):
-    cols = [d[0] for d in cursor.description]
-    return [dict(zip(cols, row)) for row in cursor.fetchall()]
+def sb_post(table, data):
+    body = json.dumps(data).encode()
+    url = f"{SUPABASE_URL}/rest/v1/{table}"
+    req = Request(url, data=body, method="POST", headers={
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates",
+    })
+    with urlopen(req, context=SSL_CTX, timeout=8) as r:
+        return r.status
 
 
 def handle_health():
     db_ok = False
-    if DATABASE_URL:
+    if SUPABASE_URL and SUPABASE_ANON_KEY:
         try:
-            conn = get_conn()
-            conn.close()
+            sb_get("hackathons", {"limit": "1"})
             db_ok = True
         except Exception:
             pass
@@ -51,54 +59,34 @@ def handle_health():
 
 
 def handle_hackathons(params):
-    if not DATABASE_URL:
-        return respond({"count": 0, "hackathons": [], "error": "DATABASE_URL not configured"})
+    if not SUPABASE_URL:
+        return respond({"count": 0, "hackathons": [], "error": "SUPABASE_URL not configured"})
     try:
         limit = min(int(params.get("limit", 100)), 500)
-        source = params.get("source")
-        status = params.get("status")
-        search = params.get("search")
-
-        conn = get_conn()
-        c = conn.cursor()
-
-        clauses, args = [], []
-        if source:
-            clauses.append("LOWER(source) = %s")
-            args.append(source.lower())
-        if status:
-            clauses.append("status = %s")
-            args.append(status)
-        if search:
-            clauses.append("(LOWER(title) LIKE %s OR LOWER(description) LIKE %s)")
-            q = f"%{search.lower()}%"
-            args.extend([q, q])
-
-        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-        args.append(limit)
-
-        c.execute(
-            f"SELECT source,title,url,deadline,prize,thumbnail,description,status,first_seen "
-            f"FROM hackathons {where} ORDER BY first_seen DESC LIMIT %s",
-            args,
-        )
-        rows = fetchdicts(c)
-        conn.close()
+        sb_params = {
+            "select": "source,title,url,deadline,prize,thumbnail,description,status,first_seen",
+            "order": "first_seen.desc",
+            "limit": str(limit),
+        }
+        if params.get("source"):
+            sb_params["source"] = f"ilike.{params['source']}"
+        if params.get("status"):
+            sb_params["status"] = f"eq.{params['status']}"
+        rows = sb_get("hackathons", sb_params)
         return respond({"count": len(rows), "hackathons": rows})
     except Exception as e:
         return respond({"count": 0, "hackathons": [], "error": str(e)})
 
 
 def handle_stats():
-    if not DATABASE_URL:
+    if not SUPABASE_URL:
         return respond({"total": 0, "by_source": {}})
     try:
-        conn = get_conn()
-        c = conn.cursor()
-        c.execute("SELECT source, COUNT(*) as cnt FROM hackathons GROUP BY source ORDER BY cnt DESC")
-        rows = fetchdicts(c)
-        conn.close()
-        by_source = {r["source"]: int(r["cnt"]) for r in rows}
+        rows = sb_get("hackathons", {"select": "source"})
+        by_source = {}
+        for r in rows:
+            s = r.get("source", "unknown")
+            by_source[s] = by_source.get(s, 0) + 1
         return respond({"total": sum(by_source.values()), "by_source": by_source})
     except Exception as e:
         return respond({"total": 0, "by_source": {}, "error": str(e)})
@@ -116,18 +104,10 @@ def handle_subscribe(body):
     fcm_token = body.get("fcm_token")
     if not email and not fcm_token:
         return respond({"error": "Provide email or fcm_token"}, 400)
-    if not DATABASE_URL:
-        return respond({"status": "error", "message": "DATABASE_URL not configured"})
+    if not SUPABASE_URL:
+        return respond({"status": "error", "message": "SUPABASE_URL not configured"})
     try:
-        conn = get_conn()
-        c = conn.cursor()
-        c.execute(
-            "INSERT INTO subscribers (email, fcm_token) VALUES (%s, %s) "
-            "ON CONFLICT (email) DO UPDATE SET fcm_token = EXCLUDED.fcm_token",
-            (email, fcm_token),
-        )
-        conn.commit()
-        conn.close()
+        sb_post("subscribers", {"email": email, "fcm_token": fcm_token})
         return respond({"status": "subscribed", "email": email})
     except Exception as e:
         return respond({"status": "error", "message": str(e)})
@@ -141,14 +121,13 @@ def handler(event, context):
     if method == "OPTIONS":
         return {"statusCode": 200, "headers": _HEADERS, "body": ""}
 
-    # Normalize: strip /api prefix so routes work regardless of redirect style.
-    # Netlify may pass either "/api/health" (original path) or "/health" (splat).
+    # Normalize: strip /api prefix
     if path.startswith("/api"):
         path = path[4:] or "/"
 
     if path in ("/", ""):
         return respond({"status": "ok", "version": "2.0.0",
-                        "db": "connected" if DATABASE_URL else "not configured"})
+                        "supabase": "configured" if SUPABASE_URL else "not configured"})
 
     if method == "GET":
         if path == "/health":
