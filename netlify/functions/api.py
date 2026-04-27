@@ -1,7 +1,8 @@
 import os
 import json
-import psycopg2
-import psycopg2.extras
+import ssl
+from urllib.parse import urlparse
+import pg8000.dbapi
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
@@ -18,7 +19,23 @@ def respond(data, code=200):
 
 
 def get_conn():
-    return psycopg2.connect(DATABASE_URL, sslmode="require")
+    url = urlparse(DATABASE_URL)
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
+    return pg8000.dbapi.connect(
+        host=url.hostname,
+        port=url.port or 5432,
+        database=url.path.lstrip("/"),
+        user=url.username,
+        password=url.password,
+        ssl_context=ssl_ctx,
+    )
+
+
+def fetchdicts(cursor):
+    cols = [d[0] for d in cursor.description]
+    return [dict(zip(cols, row)) for row in cursor.fetchall()]
 
 
 def handle_health():
@@ -43,7 +60,7 @@ def handle_hackathons(params):
         search = params.get("search")
 
         conn = get_conn()
-        c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        c = conn.cursor()
 
         clauses, args = [], []
         if source:
@@ -65,7 +82,7 @@ def handle_hackathons(params):
             f"FROM hackathons {where} ORDER BY first_seen DESC LIMIT %s",
             args,
         )
-        rows = [dict(r) for r in c.fetchall()]
+        rows = fetchdicts(c)
         conn.close()
         return respond({"count": len(rows), "hackathons": rows})
     except Exception as e:
@@ -77,9 +94,9 @@ def handle_stats():
         return respond({"total": 0, "by_source": {}})
     try:
         conn = get_conn()
-        c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        c = conn.cursor()
         c.execute("SELECT source, COUNT(*) as cnt FROM hackathons GROUP BY source ORDER BY cnt DESC")
-        rows = c.fetchall()
+        rows = fetchdicts(c)
         conn.close()
         by_source = {r["source"]: int(r["cnt"]) for r in rows}
         return respond({"total": sum(by_source.values()), "by_source": by_source})
