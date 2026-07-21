@@ -1,5 +1,9 @@
-// API is on the same domain — Netlify redirects /api/* to the function
-const API_BASE = '';
+// Calls Supabase's REST API directly — no backend server needed.
+// The key below is the "publishable" (anon) key: safe to expose client-side,
+// access is gated by Supabase Row Level Security policies, not by secrecy.
+const SUPABASE_URL = 'https://gawyuzgbaubpszajsfdj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_8CNYSi1HttCYCmOhJpJFQA_G7s4zTcM';
+const SUPABASE_HEADERS = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
 
 const SOURCE_COLORS = {
   'devpost':'#6EE7B7','dev.to':'#A78BFA','lablab.ai':'#60A5FA',
@@ -44,7 +48,7 @@ let state = {
 
 // Service Worker
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').catch(e => console.log('[SW]', e));
+  navigator.serviceWorker.register('sw.js').catch(e => console.log('[SW]', e));
 }
 
 // PWA install
@@ -79,25 +83,33 @@ async function requestNotificationPermission() {
   }
 }
 
-// API
+// Data
 async function fetchHackathons() {
   try {
-    const res = await fetch(`${API_BASE}/api/hackathons?limit=200`, { signal: AbortSignal.timeout(8000) });
+    const params = new URLSearchParams({
+      select: 'source,title,url,deadline,prize,thumbnail,description,status,first_seen',
+      order: 'first_seen.desc',
+      limit: '200',
+    });
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/hackathons?${params}`, {
+      headers: SUPABASE_HEADERS, signal: AbortSignal.timeout(8000)
+    });
     if (!res.ok) throw new Error();
     const data = await res.json();
-    if (data.hackathons && data.hackathons.length > 0) return data.hackathons;
+    if (data.length > 0) return data;
     throw new Error('empty');
   } catch {
-    console.log('[API] Using mock data');
+    console.log('[Supabase] Using mock data');
     return MOCK_DATA;
   }
 }
 
 async function subscribeEmail(email) {
   try {
-    const res = await fetch(`${API_BASE}/api/subscribe`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({email})
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/subscribers`, {
+      method: 'POST',
+      headers: { ...SUPABASE_HEADERS, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify({ email })
     });
     return res.ok;
   } catch { return false; }

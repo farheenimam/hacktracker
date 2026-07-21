@@ -2,18 +2,18 @@
   "name": "HackTracker",
   "short_name": "HackTracker",
   "description": "Live feed of hackathons from Devpost, lablab.ai, MLH, dev.to and more",
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#0A0A0F",
   "theme_color": "#0A0A0F",
   "icons": [
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
   "categories": ["developer", "productivity"],
   "shortcuts": [
-    { "name": "Open Hackathons", "url": "/?filter=open" },
-    { "name": "Saved", "url": "/?tab=saved" }
+    { "name": "Open Hackathons", "url": "?filter=open" },
+    { "name": "Saved", "url": "?tab=saved" }
   ]
 }

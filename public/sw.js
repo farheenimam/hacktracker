@@ -1,5 +1,5 @@
 const CACHE = 'hacktracker-v2';
-const STATIC = ['/', '/index.html', '/css/app.css', '/js/app.js', '/manifest.json'];
+const STATIC = ['./', './index.html', './css/app.css', './js/app.js', './manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC)));
@@ -14,10 +14,12 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return; // e.g. Supabase subscribe POST — let it pass through uncached
+
   const url = new URL(e.request.url);
-  if (url.pathname.startsWith('/api/')) {
+  if (url.hostname.endsWith('.supabase.co')) {
     e.respondWith(fetch(e.request).catch(() =>
-      new Response('{"error":"offline"}', { headers: { 'Content-Type': 'application/json' } })
+      new Response('[]', { headers: { 'Content-Type': 'application/json' } })
     ));
     return;
   }
@@ -34,9 +36,9 @@ self.addEventListener('push', e => {
   const data = e.data?.json() || {};
   e.waitUntil(self.registration.showNotification(data.title || '🚀 New Hackathon!', {
     body: data.body || 'A new hackathon was just announced.',
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-192.png',
-    data: { url: data.url || '/' },
+    icon: 'icons/icon-192.png',
+    badge: 'icons/icon-192.png',
+    data: { url: data.url || './' },
     actions: [{ action: 'open', title: 'View' }, { action: 'dismiss', title: 'Dismiss' }]
   }));
 });
@@ -44,6 +46,6 @@ self.addEventListener('push', e => {
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   if (e.action !== 'dismiss') {
-    e.waitUntil(clients.openWindow(e.notification.data?.url || '/'));
+    e.waitUntil(clients.openWindow(e.notification.data?.url || './'));
   }
 });
