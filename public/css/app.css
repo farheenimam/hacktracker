@@ -169,7 +169,7 @@ body{font-family:var(--font-body);background:var(--bg);color:var(--text);min-hei
 .nav-tab.active .nav-tab-label{color:var(--green)}
 
 /* Install prompt */
-.install-prompt{display:none;position:fixed;bottom:72px;left:16px;right:16px;background:var(--bg-card);border:1px solid rgba(110,231,183,.3);border-radius:var(--radius);padding:14px 16px;z-index:200;flex-direction:column;gap:10px;animation:slideUp .3s ease}
+.install-prompt{display:none;position:fixed;bottom:72px;left:16px;right:16px;max-width:380px;margin:0 auto;background:var(--bg-card);border:1px solid rgba(110,231,183,.3);border-radius:var(--radius);padding:14px 16px;z-index:200;flex-direction:column;gap:10px;animation:slideUp .3s ease;box-shadow:0 8px 24px rgba(0,0,0,.35)}
 @keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 .install-prompt.show{display:flex}
 .install-prompt-title{font-size:14px;font-weight:700;color:var(--text)}
